@@ -74,17 +74,28 @@ export class TelegramService {
     }
   }
 
-  async sendBriefing(): Promise<TelegramSendMessageResponse> {
+  async sendBriefing(): Promise<void> {
     try {
       const briefing = await this.briefingService.getBriefing();
 
       if (!briefing.success) {
-        this.logger.warn(
-          `Briefing generation was not successful: ${briefing.notification}`,
-        );
+        this.logger.warn('Briefing generation was not successful');
       }
 
-      return await this.sendMessage(briefing.notification);
+      // Send greeting message
+      if (briefing.messages.greeting) {
+        await this.sendMessage(briefing.messages.greeting);
+      }
+
+      // Send weather message
+      if (briefing.messages.weather) {
+        await this.sendMessage(briefing.messages.weather);
+      }
+
+      // Send quote message
+      if (briefing.messages.quote) {
+        await this.sendMessage(briefing.messages.quote);
+      }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { WeatherService } from '../weather/weather.service';
 import { QuoteService } from '../quote/quote.service';
 import { SuccessResponse } from 'src/shared/interfaces/response.interface';
@@ -7,7 +7,11 @@ import { QuoteSuccessResponse } from '../quote/interfaces/quote.interface';
 
 export interface BriefingNotification {
   success: boolean;
-  notification: string;
+  messages: {
+    greeting: string;
+    weather?: string;
+    quote?: string;
+  };
   timestamp: string;
 }
 
@@ -24,8 +28,6 @@ export class BriefingService {
       `🌡️ Temperature: ${weather.temperature}°C\n` +
       `🤔 Feels Like: ${weather.feelsLike}°C\n` +
       `📊 High: ${weather.maxTemperature}°C | Low: ${weather.minTemperature}°C\n` +
-      `💧 Humidity: ${weather.humidity}%\n` +
-      `🌬️ Wind Speed: ${weather.windSpeed} m/s\n` +
       `☁️ Condition: ${weather.condition} (${weather.description})\n` +
       `⏰ Observed at: ${weather.observationTime}\n` +
       `🌅 Sunrise: ${weather.sunrise} | 🌇 Sunset: ${weather.sunset}`
@@ -34,6 +36,19 @@ export class BriefingService {
 
   private formatQuoteSection(quote: QuoteSuccessResponse): string {
     return `💡 *Quote of the Day*\n\n` + `"${quote.q}"\n\n` + `— *${quote.a}*`;
+  }
+
+  private formatGreetingMessage(date: Date): string {
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+    };
+    const formattedDate = date.toLocaleDateString('en-US', options);
+    return `👋 Good morning! Today is ${formattedDate}. Have a great day!`;
   }
 
   async getBriefing(): Promise<BriefingNotification> {
@@ -50,52 +65,59 @@ export class BriefingService {
       if (!weatherSuccess && !quoteSuccess) {
         return {
           success: false,
-          notification: '❌ Failed to fetch weather and quote data',
+          messages: {
+            greeting: this.formatGreetingMessage(new Date()),
+          },
           timestamp: new Date().toISOString(),
         };
       }
 
-      const sections: string[] = [];
+      const messages: {
+        greeting: string;
+        weather?: string;
+        quote?: string;
+      } = {
+        greeting: this.formatGreetingMessage(new Date()),
+      };
 
-      // Add weather section if successful
+      // Add weather message if successful
       if (weatherSuccess) {
         const weatherData = (
           weatherResult as SuccessResponse<WeatherTransformedResponse>
         ).data;
         if (weatherData) {
-          sections.push(this.formatWeatherSection(weatherData));
+          messages.weather = this.formatWeatherSection(weatherData);
         }
       } else {
-        sections.push(
-          '⚠️ *Weather Data Unavailable*\n\nCould not fetch weather information',
-        );
+        messages.weather =
+          '⚠️ *Weather Data Unavailable*\n\nCould not fetch weather information';
       }
 
-      // Add quote section if successful
+      // Add quote message if successful
       if (quoteSuccess) {
         const quoteData = (
           quoteResult as SuccessResponse<QuoteSuccessResponse[]>
         ).data[0];
         if (quoteData) {
-          sections.push(this.formatQuoteSection(quoteData));
+          messages.quote = this.formatQuoteSection(quoteData);
         }
       } else {
-        sections.push(
-          '⚠️ *Quote Unavailable*\n\nCould not fetch quote of the day',
-        );
+        messages.quote =
+          '⚠️ *Quote Unavailable*\n\nCould not fetch quote of the day';
       }
-
-      const notification = sections.join(`\n\n${'─'.repeat(40)}\n\n`);
 
       return {
         success: true,
-        notification,
+        messages,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
+      Logger.error(error);
       return {
         success: false,
-        notification: `❌ Error generating briefing: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        messages: {
+          greeting: this.formatGreetingMessage(new Date()),
+        },
         timestamp: new Date().toISOString(),
       };
     }
